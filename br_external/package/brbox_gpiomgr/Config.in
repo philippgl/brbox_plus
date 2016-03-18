@@ -1,0 +1,15 @@
+config BR2_PACKAGE_BRBOX_GPIOMGR
+	bool "Gpio-Manager-Service"
+	default n
+	select BR2_PACKAGE_BRBOX_LIBADCMNOLD
+	help
+	  gpio manager service for supporting gpio control features via rpc
+
+config BR2_PACKAGE_BRBOX_GPIOMGR_INIT_ORDER
+        string "gpiomgr init.d order"
+        default "71"
+        depends on BR2_PACKAGE_BRBOX_GPIOMGR
+        help
+          At which place in the init.d startup this service should be started. Needs to be a 2-digit integer.
+          Will be prefixed by "S" by buildroot, so e.g. "77" becomes "S77"
+

@@ -1,0 +1,53 @@
+menu "BrBox Packages"
+
+config BR2_TARGET_BRBOX_PACKAGES
+        bool "BrBox Related packages"
+	default n
+        help
+          Enable building of all BrBox related packages
+
+config BR2_TARGET_BRBOX_SVNURL
+        string "base svn location of BrBox Packages"
+	default "http://github.com/hackboxguy/brbox/trunk"
+        depends on BR2_TARGET_BRBOX_PACKAGES
+        help
+          From which svn location to checkout the sources during build process
+
+config BR2_TARGET_BRBOX_COMMON
+        bool "Common packages"
+	depends on BR2_TARGET_BRBOX_PACKAGES
+        help
+          Enable building of common (non-board-specific) packages
+
+if BR2_TARGET_BRBOX_COMMON
+menu "Common packages"
+source "$BR2_EXTERNAL/package/brbox_libAdSttngs/Config.in"
+source "$BR2_EXTERNAL/package/brbox_libAdCmnOld/Config.in"
+source "$BR2_EXTERNAL/package/brbox_mkimage/Config.in"
+source "$BR2_EXTERNAL/package/brbox_sysmgr/Config.in"
+source "$BR2_EXTERNAL/package/brbox_finddevtype/Config.in"
+source "$BR2_EXTERNAL/package/brbox_defhostname/Config.in"
+source "$BR2_EXTERNAL/package/brbox_huawei_e173udevrule/Config.in"
+source "$BR2_EXTERNAL/package/brbox_libgammu/Config.in"
+source "$BR2_EXTERNAL/package/brbox_libgloox/Config.in"
+source "$BR2_EXTERNAL/package/brbox_libonion/Config.in"
+endmenu
+endif
+
+
+source "$BR2_EXTERNAL/package/brbox_baytrail_update/Config.in"
+source "$BR2_EXTERNAL/package/brbox_baytrail_mount/Config.in"
+source "$BR2_EXTERNAL/package/brbox_I210kmodAvbIgb/Config.in"
+source "$BR2_EXTERNAL/package/brbox_raspi2_update/Config.in"
+source "$BR2_EXTERNAL/package/brbox_raspi2_mount/Config.in"
+source "$BR2_EXTERNAL/package/brbox_bbb_update/Config.in"
+source "$BR2_EXTERNAL/package/brbox_bbbmmc_update/Config.in"
+source "$BR2_EXTERNAL/package/brbox_bbb_mount/Config.in"
+source "$BR2_EXTERNAL/package/brbox_bbbmmc_mount/Config.in"
+source "$BR2_EXTERNAL/package/brbox_gpiomgr/Config.in"
+source "$BR2_EXTERNAL/package/brbox_smarteye/Config.in"
+source "$BR2_EXTERNAL/package/brbox_bboxsms/Config.in"
+source "$BR2_EXTERNAL/package/brbox_xmproxy/Config.in"
+source "$BR2_EXTERNAL/package/brbox_apisrv/Config.in"
+source "$BR2_EXTERNAL/package/brbox_gstreamer_vaapi/Config.in"
+endmenu

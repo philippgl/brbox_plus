@@ -1,0 +1,12 @@
+config BR2_PACKAGE_BRBOX_MKIMAGE
+	bool "Modified u-boot mkimage tool"
+	default y
+	help
+	  mkimage tool modified to support BRBOX image types plus some extra features
+
+config BR2_PACKAGE_HOST_BRBOX_MKIMAGE
+	bool "Modified u-boot mkimage tool (for host)"
+	default n
+	depends on BR2_PACKAGE_BRBOX_MKIMAGE
+	help
+		Also build host tool brbox-mkimage
