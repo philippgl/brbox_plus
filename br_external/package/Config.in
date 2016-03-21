@@ -1,5 +1,21 @@
 menu "BrBox Packages"
 
+menu "Disk Image Settings"
+
+config BR2_BRBOX_DISKSIZE
+    string "Size of the disk image"
+    default "256M"
+    help
+        Size of the generated disk image
+
+config BR2_BRBOX_PARTITIONSIZE
+    string "Size of the partition image"
+    default "104M"
+    help
+        Size of a root partition 
+        Has to be smaller than half the IMAGESIZE
+endmenu
+
 config BR2_TARGET_BRBOX_PACKAGES
         bool "BrBox Related packages"
 	default n
