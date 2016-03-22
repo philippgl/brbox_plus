@@ -8,7 +8,7 @@ if getopt -T ; test $? -ne 4 ; then
 fi
 
 # We need OPTIONS as the `eval set --' would nuke the return value of getopt.
-OPTIONS=$(getopt -o lo:c:s --long list-configs,output-dir:,config:,skip-config \
+OPTIONS=$(getopt -o lo:c:sS --long list-configs,output-dir:,config:,skip-config,skip-make \
      -n 'create_image.sh' -- "$@")
 
 if [ $? != 0 ] ; then 
@@ -44,6 +44,11 @@ while true ; do
             SKIP_CONFIG="true"
             shift
             ;;
+        -S|--skip-make)
+            SKIP_CONFIG="true"
+            SKIP_MAKE="true"
+            shift
+            ;;
 		--) 
             shift
             break 
@@ -62,6 +67,8 @@ if [ $UID -gt 0 ]; then
 fi
 
 cd buildroot || (printf 'Error: buildroot folder not found\n' >&2 ; exit )
+
+git checkout --force
 
 if [ -z "$output_dir" ];then
     output_dir="output"
@@ -82,8 +89,10 @@ if [ -n "$BR_CONFIG" ] ;then
     fi
 fi
 
-sudo -u "$SUDO_USER" make "${MAKEOPTS[@]}"
-test $? -eq 0 || ( printf 'Error: Could not build %s\n' "$cfg_from_file" ; exit 1 )
+if [ "$SKIP_MAKE" != "true" ] ;then
+    sudo -u "$SUDO_USER" make "${MAKEOPTS[@]}"
+    test $? -eq 0 || ( printf 'Error: Could not build %s\n' "$cfg_from_file" ; exit 1 )
+fi
 
 disk_size=$(grep BR2_BRBOX_DISKSIZE "$BR_CONFIG_FILE" | sed 's;BR2_BRBOX_DISKSIZE="\(.*\)";\1;')
 partition_size=$(grep BR2_BRBOX_PARTITIONSIZE "$BR_CONFIG_FILE" | sed 's;BR2_BRBOX_PARTITIONSIZE="\(.*\)";\1;')
