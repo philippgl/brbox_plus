@@ -4,9 +4,9 @@
 #
 ################################################################################
 
-BRBOX_GSTREAMER_VAAPI_VERSION = 0.7.0
+BRBOX_GSTREAMER_VAAPI_VERSION = 1.6.0
 BRBOX_GSTREAMER_VAAPI_SITE = git://anongit.freedesktop.org/gstreamer/gstreamer-vaapi
-# BRBOX_GSTREAMER_VAAPI_SOURCE = gstreamer-vaapi-$(BRBOX_GSTREAMER_VAAPI_VERSION).tar.gz
+BRBOX_GSTREAMER_VAAPI_SOURCE = gstreamer-vaapi-$(BRBOX_GSTREAMER_VAAPI_VERSION).tar.gz
 BRBOX_GSTREAMER_VAAPI_SITE_METHOD = git_with_submodules
 BRBOX_GSTREAMER_VAAPI_LICENSE = BSD-4c BSD-2c
 BRBOX_GSTREAMER_VAAPI_INSTALL_STAGING = YES
