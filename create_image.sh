@@ -2,7 +2,11 @@
 
 # DEBUG=y
 
-sudo -u "$SUDO_USER" ./prepare_build_root.sh
+if [ -n "$SUDO_USER" ]; then
+    sudo -u "$SUDO_USER" ./prepare_build_root.sh
+else
+    ./prepare_build_root.sh
+fi
 
 if getopt -T ; test $? -ne 4 ; then
     printf 'Incompatible getopt\n' >&2
