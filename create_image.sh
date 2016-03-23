@@ -68,7 +68,7 @@ if [ $UID -gt 0 ]; then
     exit 1
 fi
 
-cd buildroot || (printf 'Error: buildroot folder not found\n' >&2 ; exit )
+cd buildroot || { printf 'Error: buildroot folder not found\n' >&2 ; exit 1; }
 
 git checkout --force
 
@@ -78,7 +78,7 @@ fi
 
 if [ -n "$BR_CONFIG" ] && [ "$SKIP_CONFIG" != "true" ] ;then
     sudo -u "$SUDO_USER" make "${MAKEOPTS[@]}" "brbox_${BR_CONFIG}_defconfig"
-    test $? -eq 0 || ( printf 'Error: Could not configure %s\n' "$BR_CONFIG" ; exit 1 )
+    test $? -eq 0 || { printf 'Error: Could not configure %s\n' "$BR_CONFIG" ; exit 1; }
 fi
 
 cfg_from_file=$(grep BR2_DEFCONFIG "$BR_CONFIG_FILE" | sed 's;.*/configs/brbox_\(.*\)_defconfig";\1;')
@@ -93,7 +93,7 @@ fi
 
 if [ "$SKIP_MAKE" != "true" ] ;then
     sudo -u "$SUDO_USER" make "${MAKEOPTS[@]}"
-    test $? -eq 0 || ( printf 'Error: Could not build %s\n' "$cfg_from_file" ; exit 1 )
+    test $? -eq 0 || { printf 'Error: Could not build %s\n' "$cfg_from_file" ; exit 1; }
 fi
 
 disk_size=$(grep BR2_BRBOX_DISKSIZE "$BR_CONFIG_FILE" | sed 's;BR2_BRBOX_DISKSIZE="\(.*\)";\1;')
@@ -107,7 +107,7 @@ fi
 image_filename="$output_dir/images/bootable-usb-disk.img"
 
 fallocate -l "$disk_size" "$image_filename"
-test $? -eq 0 || (printf 'Could not create %s\n' "$image_filename" >&2 ; exit 1)
+test $? -eq 0 || { printf 'Could not create %s\n' "$image_filename" >&2 ; exit 1; }
 
 BOOTSIZE=1M
 STTNGSIZE=16M
@@ -128,14 +128,14 @@ sgdisk -n 2::+"$partition_size"  -c 2:$ROOT1_LABEL    "$image_filename" >/dev/nu
 sgdisk -n 3::+"$partition_size"  -c 3:$ROOT2_LABEL    "$image_filename" >/dev/null
 sgdisk -n 4::+"$STTNGSIZE"  -c 4:$STTNG_LABEL    "$image_filename" >/dev/null
 sgdisk -n 5:: -c 5:$USRDAT_LABEL   "$image_filename" >/dev/null
-test $? -eq 0 || (printf 'Could not partition %s\n' "$image_filename" >&2 ; exit 1)
+test $? -eq 0 || { printf 'Could not partition %s\n' "$image_filename" >&2 ; exit 1; }
 
 echo "Creating disk image"
 loopdevice=$(losetup -f --show "$image_filename")
-test $? -eq 0 || (printf 'Could not setup loop device %s\n' "$image_filename" >&2 ; exit 1)
+test $? -eq 0 || { printf 'Could not setup loop device %s\n' "$image_filename" >&2 ; exit 1; }
 
 partx -a "$loopdevice"
-test $? -eq 0 || (printf 'Could not find partitions\n' >&2 ; exit 1)
+test $? -eq 0 || { printf 'Could not find partitions\n' >&2 ; exit 1; }
 
 echo "Formating disk image"
 mkfs.ext3 -L $ROOT1_LABEL "${loopdevice}p2" 1>/dev/null 2>/dev/null
