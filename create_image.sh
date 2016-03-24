@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# DEBUG=y
+DEBUG=y
 
 if [ -n "$SUDO_USER" ]; then
     sudo -u "$SUDO_USER" ./prepare_build_root.sh
@@ -14,7 +14,7 @@ if getopt -T ; test $? -ne 4 ; then
 fi
 
 # We need OPTIONS as the `eval set --' would nuke the return value of getopt.
-OPTIONS=$(getopt -o lo:c:sS --long list-configs,output-dir:,config:,skip-config,skip-make \
+options=$(getopt -o lo:c:v:b:sS --long list-configs,output-dir:,config:,version:,build-number:skip-config,skip-make \
      -n 'create_image.sh' -- "$@")
 
 if [ $? != 0 ] ; then 
@@ -22,12 +22,16 @@ if [ $? != 0 ] ; then
     exit 1
 fi
 
-eval set -- "$OPTIONS"
+eval set -- "$options"
 
-BR_CONFIG_FILE="$PWD/buildroot/.config"
+br_config_file="$PWD/buildroot/.config"
+build_ver=00
+build_number=00000
+output_dir="output"
 
-declare -a MAKEOPTS
-MAKEOPTS+=("BR2_EXTERNAL=../br_external")
+
+declare -a makeopts
+makeopts+=("BR2_EXTERNAL=../br_external")
 while true ; do
 	case "$1" in
 		-l|--list-configs) 
@@ -37,22 +41,30 @@ while true ; do
             ;;
 		-o|--output-dir) 
             output_dir="$2"
-            BR_CONFIG_FILE="$output_dir/.config"
+            br_config_file="$output_dir/.config"
             test -n "$DEBUG" && printf 'Using output-dir "%s"\n' "$output_dir"
-            MAKEOPTS+=("O=$output_dir")
+            makeopts+=("O=$output_dir")
             shift 2 
             ;;
 		-c|--config)
-			BR_CONFIG="$2"
+			br_config="$2"
+            shift 2
+            ;;
+		-v|--version)
+			build_ver="$2"
+            shift 2
+            ;;
+		-b|--build-number)
+			build_number="$2"
             shift 2
             ;;
         -s|--skip-config)
-            SKIP_CONFIG="true"
+            skip_config="true"
             shift
             ;;
         -S|--skip-make)
-            SKIP_CONFIG="true"
-            SKIP_MAKE="true"
+            skip_config="true"
+            skip_make="true"
             shift
             ;;
 		--) 
@@ -76,32 +88,28 @@ cd buildroot || { printf 'Error: buildroot folder not found\n' >&2 ; exit 1; }
 
 git checkout --force
 
-if [ -z "$output_dir" ];then
-    output_dir="output"
+if [ -n "$br_config" ] && [ "$skip_config" != "true" ] ;then
+    sudo -u "$SUDO_USER" make "${makeopts[@]}" "brbox_${br_config}_defconfig"
+    test $? -eq 0 || { printf 'Error: Could not configure %s\n' "$br_config" ; exit 1; }
 fi
 
-if [ -n "$BR_CONFIG" ] && [ "$SKIP_CONFIG" != "true" ] ;then
-    sudo -u "$SUDO_USER" make "${MAKEOPTS[@]}" "brbox_${BR_CONFIG}_defconfig"
-    test $? -eq 0 || { printf 'Error: Could not configure %s\n' "$BR_CONFIG" ; exit 1; }
-fi
+cfg_from_file=$(grep BR2_DEFCONFIG "$br_config_file" | sed 's;.*/configs/brbox_\(.*\)_defconfig";\1;')
 
-cfg_from_file=$(grep BR2_DEFCONFIG "$BR_CONFIG_FILE" | sed 's;.*/configs/brbox_\(.*\)_defconfig";\1;')
-
-if [ -n "$BR_CONFIG" ] ;then
-    if [ "$cfg_from_file" != "$BR_CONFIG" ];then
+if [ -n "$br_config" ] ;then
+    if [ "$cfg_from_file" != "$br_config" ];then
         printf 'Error: Something went wrong during configuration\n' >&2
         printf 'Error: BR2_DEFCONFIG is not pointing to the right configuration\n' >&2
         exit 1
     fi
 fi
 
-if [ "$SKIP_MAKE" != "true" ] ;then
-    sudo -u "$SUDO_USER" make "${MAKEOPTS[@]}"
+if [ "$skip_make" != "true" ] ;then
+    sudo -u "$SUDO_USER" make "${makeopts[@]}"
     test $? -eq 0 || { printf 'Error: Could not build %s\n' "$cfg_from_file" ; exit 1; }
 fi
 
-disk_size=$(grep BR2_BRBOX_DISKSIZE "$BR_CONFIG_FILE" | sed 's;BR2_BRBOX_DISKSIZE="\(.*\)";\1;')
-partition_size=$(grep BR2_BRBOX_PARTITIONSIZE "$BR_CONFIG_FILE" | sed 's;BR2_BRBOX_PARTITIONSIZE="\(.*\)";\1;')
+disk_size=$(grep BR2_BRBOX_DISKSIZE "$br_config_file" | sed 's;BR2_BRBOX_DISKSIZE="\(.*\)";\1;')
+partition_size=$(grep BR2_BRBOX_PARTITIONSIZE "$br_config_file" | sed 's;BR2_BRBOX_PARTITIONSIZE="\(.*\)";\1;')
 
 if [ -n "$DEBUG" ]; then
     printf 'Disk size: %s\n' "$disk_size"
@@ -199,16 +207,16 @@ ENDOFGRUBCFG
 test $? -eq 0 || { printf 'Could not create grub.cfg\n' >&2 ; exit 1; }
 
 echo "Installing grub"
-$output_dir/host/usr/bin/grub-mkimage -d $output_dir/host/usr/lib/grub/i386-pc \
-    -O i386-pc -o $output_dir/images/grub.img -c $output_dir/grub.cfg.in \
+"$output_dir/host/usr/bin/grub-mkimage" -d "$output_dir/host/usr/lib/grub/i386-pc" \
+    -O i386-pc -o "$output_dir/images/grub.img" -c "$output_dir/grub.cfg.in" \
     acpi cat boot linux ext2 fat part_msdos part_gpt normal biosdisk \
     search echo search_fs_uuid normal ls ata configfile halt help \
     hello read png vga lspci echo minicmd vga_text terminal
 test $? -eq 0 || { printf 'Could not generate grub.img\n' >&2 ; exit 1; }
 
-$output_dir/host/usr/sbin/grub-bios-setup \
-    -b $output_dir/host/usr/lib/grub/i386-pc/boot.img \
-    -c $output_dir/images/grub.img -d / "$loopdevice"
+"$output_dir/host/usr/sbin/grub-bios-setup" \
+    -b "$output_dir/host/usr/lib/grub/i386-pc/boot.img" \
+    -c "$output_dir/images/grub.img" -d / "$loopdevice"
 test $? -eq 0 || { printf 'Could setup grub\n' >&2 ; exit 1; }
 
 cp "$output_dir/grub.cfg" "$mountdir/root1/boot/grub/grub.cfg"
@@ -224,3 +232,13 @@ losetup -d "$loopdevice"
 sync
 
 chown "$SUDO_UID:$SUDO_GID" "$image_filename"
+
+build_version="${build_ver}.${build_number}"
+
+cd .. || exit 1
+
+test -n "$DEBUG" && printf 'pwd: "%s"\n' "$PWD"
+
+rootfs_type=$(grep BR2_BRBOX_ROOTFS_TYPE "$br_config_file" | sed 's;.*="\(.*\)";\1;')
+sudo -u "$SUDO_USER" ./scripts/brbox-mkuimg.sh -r "$output_dir/images/rootfs.tar.xz" -v "$build_version" -o "$output_dir/images/${cfg_from_file}.uimg" -m "$output_dir/host/usr/sbin/brbox-mkimage" -t "$rootfs_type"
+

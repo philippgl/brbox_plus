@@ -14,6 +14,19 @@ config BR2_BRBOX_PARTITIONSIZE
     help
         Size of a root partition 
         Has to be smaller than half the IMAGESIZE
+
+config BR2_BRBOX_ROOTFS_TYPE
+    string "Rootfs type for the brbox-mkimage"
+    default "BrBoxRtBtr"
+    help
+        Taken from brbox-mkimage/image.h
+        Available Options are: 
+        "BrBoxRtBtr" //root-fs bay-trail
+        "BrBoxRtRp1" //root-fs raspi1
+        "BrBoxRtRp2" //root-fs raspi2
+        "BrBoxRtBbb" //root-fs beagle-bone-black
+        "BrBoxRtWdb" //root-fs wandboard
+
 endmenu
 
 config BR2_TARGET_BRBOX_PACKAGES
