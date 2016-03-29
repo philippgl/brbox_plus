@@ -1,0 +1,153 @@
+#!/bin/bash - 
+#===============================================================================
+#
+#          FILE: create_image_helper.sh
+# 
+#         USAGE: ./create_image_helper.sh 
+# 
+#   DESCRIPTION: does the image creation stuff that requires sudo
+# 
+#===============================================================================
+
+set -o nounset                              # Treat unset variables as an error
+
+if [ $UID -ne 0 ]; then
+    print 'This script needs root privilidges.\n' >&2
+    exit 1
+fi
+
+# cannot wait for non-child process
+while kill -0 "$1" 2>/dev/null  ;do
+    sleep 5
+done
+shift
+
+return_state="$(cat "$1")"
+output_dir="$2"
+disk_size="$3"
+partition_size="$4"
+
+if [ "$return_state" -gt 0 ]; then
+    printf 'Error: Make failed' >&2
+    exit 1
+fi
+
+image_filename="$output_dir/images/bootable-usb-disk.img"
+
+fallocate -l "$disk_size" "$image_filename"
+test $? -eq 0 || { printf 'Could not create %s\n' "$image_filename" >&2 ; exit 1; }
+
+BOOTSIZE=1M
+STTNGSIZE=16M
+ROOT1_LABEL=ROOT1   #linux-1
+ROOT2_LABEL=ROOT2   #linux-2
+STTNG_LABEL=STTNG   #settings
+USRDAT_LABEL=USRDAT #userdata
+# IMAGE_VERSION=01.00.12345
+GRUB_MENU_ENTRY1='brbox1'
+GRUB_MENU_ENTRY2='brbox2'
+GRUB2_TIMEOUT=1
+ROOTDELAY=5
+
+# Formatting disk
+sgdisk -Z "$image_filename" >/dev/null
+sgdisk -n 1::+"$BOOTSIZE"   -t 1:ef02 -c 1:boot  "$image_filename" >/dev/null
+sgdisk -n 2::+"$partition_size"  -c 2:$ROOT1_LABEL    "$image_filename" >/dev/null
+sgdisk -n 3::+"$partition_size"  -c 3:$ROOT2_LABEL    "$image_filename" >/dev/null
+sgdisk -n 4::+"$STTNGSIZE"  -c 4:$STTNG_LABEL    "$image_filename" >/dev/null
+sgdisk -n 5:: -c 5:$USRDAT_LABEL   "$image_filename" >/dev/null
+test $? -eq 0 || { printf 'Could not partition %s\n' "$image_filename" >&2 ; exit 1; }
+
+# needs to write this file to disk, cannot find partitions otherwise
+sync
+
+echo "Creating disk image"
+loopdevice=$(losetup -f --show "$image_filename")
+test $? -eq 0 || { printf 'Could not setup loop device %s\n' "$image_filename" >&2 ; exit 1; }
+
+partx -a "$loopdevice"
+test $? -eq 0 || { printf 'Could not find partitions\n' >&2 ; exit 1; }
+
+echo "Formating disk image"
+mkfs.ext3 -L $ROOT1_LABEL "${loopdevice}p2" 1>/dev/null 2>/dev/null
+test $? -eq 0 || { printf 'Formatting %s failed\n' $ROOT1_LABEL >&2 ; exit 1; }
+mkfs.ext3 -L $ROOT2_LABEL "${loopdevice}p3" 1>/dev/null 2>/dev/null
+test $? -eq 0 || { printf 'Formatting %s failed\n' $ROOT2_LABEL >&2 ; exit 1; }
+mkfs.ext3 -L $STTNG_LABEL "${loopdevice}p4" 1>/dev/null 2>/dev/null
+test $? -eq 0 || { printf 'Formatting %s failed\n' $STTNG_LABEL >&2 ; exit 1; }
+mkfs.ext3 -L $USRDAT_LABEL "${loopdevice}p4" 1>/dev/null 2>/dev/null
+test $? -eq 0 || { printf 'Formatting %s failed\n' $USRDAT_LABEL >&2 ; exit 1; }
+
+mountdir=$(mktemp -d)
+mkdir "$mountdir/root1" "$mountdir/root2"
+mount "${loopdevice}p2" "$mountdir/root1"
+test $? -eq 0 || { printf 'Could not mount root1\n' >&2 ; exit 1; }
+mount "${loopdevice}p3" "$mountdir/root2"
+test $? -eq 0 || { printf 'Could not mount root2\n' >&2 ; exit 1; }
+
+echo "Copying files"
+rootfs="$output_dir/images/rootfs.tar.xz"
+tar -C "$mountdir/root1" -Jxf "$rootfs"
+test $? -eq 0 || { printf 'Could not extract files onto root1\n' >&2; exit 1; }
+tar -C "$mountdir/root2" -Jxf "$rootfs"
+test $? -eq 0 || { printf 'Could not extract files onto root2\n' >&2; exit 1; }
+
+echo "Generating grub configs"
+cat <<ENDOFGRUBCFG >"$output_dir/grub.cfg.in"
+insmod part_gpt
+insmod part_msdos
+insmod ext2
+search -l $ROOT1_LABEL -s root
+if [ -e /boot/grub/grub.cfg ]; then
+	configfile /boot/grub/grub.cfg
+else
+	search -l $ROOT2_LABEL -s root
+	configfile /boot/grub/grub.cfg
+fi
+ENDOFGRUBCFG
+test $? -eq 0 || { printf 'Could not create grub.cfg.in\n' >&2 ; exit 1; }
+
+part1uuid=$(sgdisk -i=2 "$loopdevice" |grep 'Partition unique GUID' |cut -d\  -f4)
+part2uuid=$(sgdisk -i=3 "$loopdevice" |grep 'Partition unique GUID' |cut -d\  -f4)
+
+cat <<ENDOFGRUBCFG >"$output_dir/grub.cfg"
+set timeout=$GRUB2_TIMEOUT
+set default=0
+insmod ext2
+menuentry $GRUB_MENU_ENTRY1 {
+    search -l $ROOT1_LABEL -s root
+    linux /boot/bzImage rootdelay=$ROOTDELAY consoleblank=0 ro enable_mtrr_cleanup mtrr_spare_reg_nr=1 brboxsystem=$GRUB_MENU_ENTRY1 net.ifnames=0 root=PARTUUID=$part1uuid
+}
+menuentry $GRUB_MENU_ENTRY2 {
+    search -l $ROOT2_LABEL -s root
+    linux /boot/bzImage rootdelay=$ROOTDELAY consoleblank=0 ro enable_mtrr_cleanup mtrr_spare_reg_nr=1 brboxsystem=$GRUB_MENU_ENTRY2 net.ifnames=0 root=PARTUUID=$part2uuid
+}
+ENDOFGRUBCFG
+test $? -eq 0 || { printf 'Could not create grub.cfg\n' >&2 ; exit 1; }
+
+echo "Installing grub"
+"$output_dir/host/usr/bin/grub-mkimage" -d "$output_dir/host/usr/lib/grub/i386-pc" \
+    -O i386-pc -o "$output_dir/images/grub.img" -c "$output_dir/grub.cfg.in" \
+    acpi cat boot linux ext2 fat part_msdos part_gpt normal biosdisk \
+    search echo search_fs_uuid normal ls ata configfile halt help \
+    hello read png vga lspci echo minicmd vga_text terminal
+test $? -eq 0 || { printf 'Could not generate grub.img\n' >&2 ; exit 1; }
+
+"$output_dir/host/usr/sbin/grub-bios-setup" \
+    -b "$output_dir/host/usr/lib/grub/i386-pc/boot.img" \
+    -c "$output_dir/images/grub.img" -d / "$loopdevice"
+test $? -eq 0 || { printf 'Could setup grub\n' >&2 ; exit 1; }
+
+cp "$output_dir/grub.cfg" "$mountdir/root1/boot/grub/grub.cfg"
+cp "$output_dir/grub.cfg" "$mountdir/root2/boot/grub/grub.cfg"
+
+printf "Cleaning up\n"
+umount "$mountdir/root1"
+umount "$mountdir/root2"
+partx -d "$loopdevice"
+losetup -d "$loopdevice"
+rm -rf "$mountdir"
+sync
+
+chown "$SUDO_UID:$SUDO_GID" "$image_filename"
+
