@@ -1,9 +1,9 @@
 #!/bin/bash - 
 #===============================================================================
 #
-#          FILE: create_image_helper.sh
+#          FILE: create_disk_image
 # 
-#         USAGE: ./create_image_helper.sh 
+#         USAGE: ./create_disk_image [ output_directory [ disk_size [ image_size  ]]] 
 # 
 #   DESCRIPTION: does the image creation stuff that requires sudo
 # 
@@ -11,25 +11,44 @@
 
 set -o nounset                              # Treat unset variables as an error
 
+for arg in "$@" ; do
+    case "$arg" in
+        -*) 
+            printf 'Usage: %s [ output_directory [ disk_size [ image_size  ]]]\n' "$0"
+            printf 'This script also needs root priviledges\n' "$0"
+            printf 'required for the mount syscall\n' "$0"
+            exit
+            ;;
+    esac
+done
+
 if [ $UID -ne 0 ]; then
-    print 'This script needs root privilidges.\n' >&2
+    printf 'This script needs root priviledges.\n' >&2
     exit 1
 fi
 
-# cannot wait for non-child process
-while kill -0 "$1" 2>/dev/null  ;do
-    sleep 5
-done
-shift
-
-return_state="$(cat "$1")"
-output_dir="$2"
-disk_size="$3"
-partition_size="$4"
-
-if [ "$return_state" -gt 0 ]; then
-    printf 'Error: Make failed' >&2
-    exit 1
+output_dir="$PWD/output"
+br_config_file="$output_dir/.config"
+if [ -d "$PWD/output" ];then
+    output_dir="$PWD/output"
+fi
+if [ $# -gt 0 ]; then 
+    output_dir="$1"
+    br_config_file="$output_dir/.config"
+    shift
+fi
+disk_size=$(grep BR2_BRBOX_DISKSIZE "$br_config_file" | sed 's;BR2_BRBOX_DISKSIZE="\(.*\)";\1;')
+if [ $# -gt 0 ]; then 
+    disk_size="$1"
+    shift
+fi
+partition_size=$(grep BR2_BRBOX_PARTITIONSIZE "$br_config_file" | sed 's;BR2_BRBOX_PARTITIONSIZE="\(.*\)";\1;')
+if [ $# -gt 0 ]; then 
+    partition_size="$1"
+    shift
+    if [ $# -gt 0]; then
+        printf 'Too many arguments' >&2
+        exit 1
 fi
 
 image_filename="$output_dir/images/bootable-usb-disk.img"

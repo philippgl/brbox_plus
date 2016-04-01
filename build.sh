@@ -20,12 +20,19 @@ fi
 eval set -- "$options"
 
 br_config_file="$DIR/buildroot/.config"
+output_dir="$DIR/buildroot/output"
 build_ver=00
 build_number=00000
-output_dir="$DIR/output"
+# prefer an output_dir in the current directory or in $DIR
+if [ -d "$DIR/output" ];then
+    output_dir="$DIR/output"
+    br_config_file="$output_dir/.config"
+fi
 if [ -d "$PWD/output" ];then
     output_dir="$PWD/output"
+    br_config_file="$output_dir/.config"
 fi
+
 
 declare -a makeopts
 makeopts+=("BR2_EXTERNAL=../br_external") # relative to the buildroot directory
@@ -94,32 +101,31 @@ if [ -n "$br_config" ] ;then
     fi
 fi
 
-logfile="$(mktemp "$output_dir"/log-XXXX.txt)"
-printf 'Stdout and stderr of the make process are logged in %s\n' "$logfile"
-return_state_file=$(mktemp -p /dev/shm/)
-printf '0' >"$return_state_file"
-( if [ "$skip_make" != "true" ] ;then
-    make "${makeopts[@]}" &>"$logfile"
-    return_state=$?
-    printf '%s' "$return_state" >"$return_state_file"
-
-    if [ $return_state -gt 0 ]; then
-        printf 'Error: Could not build %s\n' "$cfg_from_file"
-    fi
-fi ) & wait_pid=$!
-
-disk_size=$(grep BR2_BRBOX_DISKSIZE "$br_config_file" | sed 's;BR2_BRBOX_DISKSIZE="\(.*\)";\1;')
-partition_size=$(grep BR2_BRBOX_PARTITIONSIZE "$br_config_file" | sed 's;BR2_BRBOX_PARTITIONSIZE="\(.*\)";\1;')
-
-if [ -n "$DEBUG" ]; then
-    printf 'Disk size: %s\n' "$disk_size"
-    printf 'Partition size: %s\n' "$partition_size"
+if [ -e "$output_dir" ] && [ ! -d "$output_dir" ] ; then
+    printf 'Error: %s exists and is not a directory\n' "$output_dir" >&2
+    exit 1
 fi
 
-cd .. || exit 1
+mkdir -p "$(readlink -m "$output_dir")"
+if [ $? -gt 0 ]; then
+    printf 'Error: Could not create or find output directory\n' >&2
+    exit 1
+fi
 
-sudo "$DIR/scripts/create_image_helper.sh" "$wait_pid" "$return_state_file" "$output_dir" "$disk_size" "$partition_size"
-rm "$return_state_file"
+logfile="$(mktemp "$output_dir"/log-XXXX.txt)"
+printf 'Stdout and stderr of the make process are logged in %s\n' "$logfile"
+if [ "$skip_make" != "true" ] ;then
+    make "${makeopts[@]}" &>"$logfile"
+    return_state=$?
+
+    if [ $return_state -gt 0 ]; then
+        printf 'Error: Could not build %s\n' "$cfg_from_file" >&2
+        exit 1
+    fi
+fi
+
+
+cd .. || exit 1
 
 test -n "$DEBUG" && printf 'pwd: "%s"\n' "$PWD"
 
