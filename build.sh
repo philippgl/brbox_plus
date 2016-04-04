@@ -9,7 +9,7 @@ if getopt -T ; test $? -ne 4 ; then
 fi
 
 # We need OPTIONS as the `eval set --' would nuke the return value of getopt.
-options=$(getopt -o lo:c:v:b:sS --long list-configs,output-dir:,config:,version:,build-number:skip-config,skip-make \
+options=$(getopt -o lo:c:v:b:s --long list-configs,output-dir:,config:,version:,build-number:,skip-make \
      -n 'create_image.sh' -- "$@")
 
 if [ $? != 0 ] ; then 
@@ -23,13 +23,13 @@ br_config_file="$DIR/buildroot/.config"
 output_dir="$DIR/buildroot/output"
 build_ver=00
 build_number=00000
-# prefer an output_dir in the current directory or in $DIR
-if [ -d "$DIR/output" ];then
-    output_dir="$DIR/output"
-    br_config_file="$output_dir/.config"
-fi
+# prefer an output_dir in the current directory
 if [ -d "$PWD/output" ];then
     output_dir="$PWD/output"
+    br_config_file="$output_dir/.config"
+fi
+if [ -f "$PWD/.output_dir" ] && [ -d "$(cat "$PWD/.output_dir")" ] ;then
+    output_dir="$(cat "$PWD/.output_dir")"
     br_config_file="$output_dir/.config"
 fi
 
@@ -44,8 +44,9 @@ while true ; do
             exit
             ;;
 		-o|--output-dir) 
-            output_dir="$2"
+            output_dir="$(realpath "$2")"
             br_config_file="$output_dir/.config"
+            printf '%s' >.output_dir
             test -n "$DEBUG" && printf 'Using output-dir "%s"\n' "$output_dir"
             shift 2 
             ;;
@@ -61,12 +62,7 @@ while true ; do
 			build_number="$2"
             shift 2
             ;;
-        -s|--skip-config)
-            skip_config="true"
-            shift
-            ;;
-        -S|--skip-make)
-            skip_config="true"
+        -s|--skip-make)
             skip_make="true"
             shift
             ;;
@@ -86,9 +82,14 @@ makeopts+=("O=$output_dir")
 
 cd "$DIR/buildroot" || { printf 'Error: buildroot folder not found\n' >&2 ; exit 1; }
 
-if [ -n "$br_config" ] && [ "$skip_config" != "true" ] ;then
+if [ -n "$br_config" ] ;then
     make "${makeopts[@]}" "brbox_${br_config}_defconfig"
     test $? -eq 0 || { printf 'Error: Could not configure %s\n' "$br_config" ; exit 1; }
+fi
+
+if [ ! -f "$br_config_file" ]; then
+    printf 'Error: Config file not found: %s\n' "$br_config_file" >&2
+    exit 1
 fi
 
 cfg_from_file=$(grep BR2_DEFCONFIG "$br_config_file" | sed 's;.*/configs/brbox_\(.*\)_defconfig";\1;')
