@@ -27,16 +27,18 @@ if [ $UID -ne 0 ]; then
     exit 1
 fi
 
-output_dir="$PWD/output"
+DIR="$( cd "$(dirname "${BASH_SOURCE[0]}")" && pwd )"
+output_dir="$DIR/buildroot/output"
 br_config_file="$output_dir/.config"
 if [ -d "$PWD/output" ];then
     output_dir="$PWD/output"
-fi
-if [ $# -gt 0 ]; then 
-    output_dir="$1"
     br_config_file="$output_dir/.config"
-    shift
 fi
+if [ -f "$PWD/.output_dir" ] && [ -d "$(cat "$PWD/.output_dir")" ] ;then
+    output_dir="$(cat "$PWD/.output_dir")"
+    br_config_file="$output_dir/.config"
+fi
+
 disk_size=$(grep BR2_BRBOX_DISKSIZE "$br_config_file" | sed 's;BR2_BRBOX_DISKSIZE="\(.*\)";\1;')
 if [ $# -gt 0 ]; then 
     disk_size="$1"
@@ -46,9 +48,10 @@ partition_size=$(grep BR2_BRBOX_PARTITIONSIZE "$br_config_file" | sed 's;BR2_BRB
 if [ $# -gt 0 ]; then 
     partition_size="$1"
     shift
-    if [ $# -gt 0]; then
+    if [ $# -gt 0 ]; then
         printf 'Too many arguments' >&2
         exit 1
+    fi
 fi
 
 image_filename="$output_dir/images/bootable-usb-disk.img"
