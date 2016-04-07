@@ -46,7 +46,7 @@ while true ; do
 		-o|--output-dir) 
             output_dir="$(realpath "$2")"
             br_config_file="$output_dir/.config"
-            printf '%s' >.output_dir
+            printf '%s' "$output_dir" >.output_dir
             test -n "$DEBUG" && printf 'Using output-dir "%s"\n' "$output_dir"
             shift 2 
             ;;
