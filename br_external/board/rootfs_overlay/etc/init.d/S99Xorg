@@ -1,0 +1,33 @@
+#!/bin/sh
+#
+# Start X as root user
+#
+#
+PIDFILE=/tmp/x.org.pid
+
+case "$1" in
+  start)
+	echo "Starting X.org"
+    export HOME=/tmp/root
+    startx & pid=$!
+    echo $pid >"$PIDFILE"
+	;;
+  stop)
+	echo "Stopping X.org" 
+    if [ ! -f /tmp/x.org.pid ];then
+        logger -s "pid file not found"
+        exit 1
+    fi
+    kill "$(cat "$PIDFILE")"
+	;;
+  restart|reload)
+	"$0" stop
+	"$0" start
+	;;
+  *)
+	echo "Usage: $0 {start|stop|restart}"
+	exit 1
+esac
+
+exit $?
+

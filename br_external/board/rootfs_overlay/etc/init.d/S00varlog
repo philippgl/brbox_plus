@@ -1,0 +1,21 @@
+#!/bin/sh
+
+# link /var/log to tmp
+
+case "$1" in
+    start)
+        mkdir -p /tmp/log
+        ;;
+    stop)
+        ;;
+    restart|reload)
+        "$0" stop
+        "$0" start
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+esac
+
+exit $?
+
